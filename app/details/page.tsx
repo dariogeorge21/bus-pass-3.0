@@ -19,8 +19,7 @@ const formSchema = z.object({
     .min(2, 'Name must be at least 2 characters')
     .regex(/^[a-zA-Z\s]+$/, 'Name can only contain letters and spaces'),
   admissionNumber: z.string()
-    .regex(/^[A-Z0-9]{9}$/, 'Admission number must be in format SJ followed by 7 characters')
-    .length(9, 'Admission number must be exactly 7 characters'),
+    .regex(/^[A-Z0-9]{7}$/, 'Admission number must be exactly 7 uppercase letters or numbers (e.g., 24CS094)'),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -55,19 +54,10 @@ export default function DetailsPage() {
   };
 
   const handleAdmissionNumberChange = (value: string) => {
-    // // Ensure SJ prefix is always present
-    // if (!value.startsWith('')) {
-    //   value = '';
-    // }
-    
-    // Convert to uppercase and remove spaces/special characters
     value = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    
-    // Limit to 7 characters total
     if (value.length > 7) {
       value = value.slice(0, 7);
     }
-    
     return value;
   };
 
