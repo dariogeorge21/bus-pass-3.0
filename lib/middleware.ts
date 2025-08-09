@@ -88,7 +88,10 @@ export function validateRequestBody<T>(
   const errors: string[] = [];
 
   for (const field of requiredFields) {
-    if (!body[field]) {
+    // Only check for presence (not truthiness) so that false/0/'' are accepted when intended
+    const hasField = Object.prototype.hasOwnProperty.call(body, field as string);
+    const value = (body as any)[field as string];
+    if (!hasField || value === undefined || value === null) {
       errors.push(`${String(field)} is required`);
     }
   }

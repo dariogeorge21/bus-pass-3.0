@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AnimatedBus } from '@/components/ui/animated-bus';
 import { PageTransition } from '@/components/ui/page-transition';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -37,6 +37,18 @@ export default function HomePage() {
   return (
     <PageTransition>
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        {/* Admin Panel Link */}
+        <div className="absolute top-4 right-4">
+          <Button
+            onClick={() => router.push('/admin')}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
+          >
+            <Settings className="w-4 h-4" />
+            Admin
+          </Button>
+        </div>
         <motion.div
           initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}

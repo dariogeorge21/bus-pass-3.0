@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
@@ -23,13 +23,21 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    // Update bus availability
-    const { error: updateError } = await supabase.rpc('decrease_bus_availability', {
-      route: busRoute,
-    });
+      // Update bus availability directly on buses (guarded)
+  const { data: decOk, error: updateError } = await supabaseAdmin.rpc('decrease_buses_available_seats_guarded', {
+    route: busRoute,
+  });
 
-    if (updateError) {
-      console.error('Failed to update bus availability:', updateError);
+      if (updateError || decOk === false) {
+      console.error('Failed to update bus availability:', updateError || 'No seats left');
+      // Roll back booking insert if no seats
+      if (data?.id) {
+        await supabase
+          .from('bookings')
+          .delete()
+          .eq('id', data.id);
+      }
+      return NextResponse.json({ error: 'No seats available for this route' }, { status: 400 });
     }
 
     return NextResponse.json({ success: true, booking: data });

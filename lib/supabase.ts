@@ -80,7 +80,7 @@ export type Database = {
           id: number;
           name: string;
           route_code: string;
-          capacity: number;
+          available_seats: number;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -88,7 +88,7 @@ export type Database = {
         Insert: {
           name: string;
           route_code: string;
-          capacity?: number;
+          available_seats?: number;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -96,7 +96,7 @@ export type Database = {
         Update: {
           name?: string;
           route_code?: string;
-          capacity?: number;
+          available_seats?: number;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -177,24 +177,6 @@ export type Database = {
           booking_enabled?: boolean;
           go_date?: string | null;
           return_date?: string | null;
-          updated_at?: string;
-        };
-      };
-      bus_availability: {
-        Row: {
-          id: number;
-          bus_route: string;
-          available_seats: number;
-          updated_at: string;
-        };
-        Insert: {
-          bus_route: string;
-          available_seats?: number;
-          updated_at?: string;
-        };
-        Update: {
-          bus_route?: string;
-          available_seats?: number;
           updated_at?: string;
         };
       };

@@ -18,7 +18,7 @@ interface BusData {
   id?: number;
   name: string;
   route_code: string;
-  capacity: number;
+  available_seats?: number;
   is_active: boolean;
 }
 
@@ -31,7 +31,7 @@ function BusManagement() {
   const [formData, setFormData] = useState<BusData>({
     name: '',
     route_code: '',
-    capacity: 50,
+    available_seats: 10,
     is_active: true
   });
 
@@ -72,7 +72,7 @@ function BusManagement() {
         toast.success('Bus created successfully');
         setBuses([...buses, result.data]);
         setIsCreating(false);
-        setFormData({ name: '', route_code: '', capacity: 50, is_active: true });
+        setFormData({ name: '', route_code: '', available_seats: 10, is_active: true });
       } else {
         toast.error(result.error || 'Failed to create bus');
       }
@@ -205,14 +205,14 @@ function BusManagement() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="capacity">Capacity</Label>
+                      <Label htmlFor="available_seats">Available Seats</Label>
                       <Input
-                        id="capacity"
+                        id="available_seats"
                         type="number"
-                        min="1"
-                        max="100"
-                        value={formData.capacity}
-                        onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
+                        min="0"
+                        max="200"
+                        value={formData.available_seats}
+                        onChange={(e) => setFormData({ ...formData, available_seats: parseInt(e.target.value) || 0 })}
                       />
                     </div>
                     <div className="flex items-center space-x-2">
@@ -230,6 +230,74 @@ function BusManagement() {
                       Create Bus
                     </Button>
                     <Button variant="outline" onClick={() => setIsCreating(false)}>
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Edit Form */}
+          {editingBus && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Edit Bus</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <Label htmlFor="edit-name">Bus Name</Label>
+                      <Input
+                        id="edit-name"
+                        value={editingBus.name}
+                        onChange={(e) => setEditingBus({ ...editingBus, name: e.target.value })}
+                        placeholder="e.g., Bus 1 - Kottayam Route"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-route_code">Route Code</Label>
+                      <Input
+                        id="edit-route_code"
+                        value={editingBus.route_code}
+                        disabled
+                        className="bg-gray-100"
+                        title="Route code cannot be changed"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-available_seats">Available Seats</Label>
+                      <Input
+                        id="edit-available_seats"
+                        type="number"
+                        min="0"
+                        max="200"
+                        value={editingBus.available_seats}
+                        onChange={(e) => setEditingBus({ ...editingBus, available_seats: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="edit-is_active"
+                        checked={editingBus.is_active}
+                        onCheckedChange={(checked) => setEditingBus({ ...editingBus, is_active: checked })}
+                      />
+                      <Label htmlFor="edit-is_active">Active</Label>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <Button onClick={handleUpdate}>
+                      <Save className="w-4 h-4 mr-2" />
+                      Update Bus
+                    </Button>
+                    <Button variant="outline" onClick={() => setEditingBus(null)}>
                       <X className="w-4 h-4 mr-2" />
                       Cancel
                     </Button>
@@ -261,11 +329,11 @@ function BusManagement() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Capacity:</span>
-                        <span className="font-semibold">{bus.capacity} seats</span>
-                      </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-sm text-gray-600">Available Seats:</span>
+                      <Badge variant="outline" className="font-semibold">
+                        {bus.available_seats ?? 0}
+                      </Badge>
                     </div>
                     <div className="flex gap-2">
                       <Button

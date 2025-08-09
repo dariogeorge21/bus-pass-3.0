@@ -128,3 +128,14 @@ BEGIN
   WHERE bus_route = route;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create function to increase bus availability
+CREATE OR REPLACE FUNCTION increase_bus_availability(route TEXT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE bus_availability 
+  SET available_seats = available_seats + 1,
+      updated_at = NOW()
+  WHERE bus_route = route;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

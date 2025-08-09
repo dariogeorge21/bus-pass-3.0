@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
       const validation = validateRequestBody<{
         name: string;
         route_code: string;
-        capacity: number;
-      }>(body, ['name', 'route_code', 'capacity']);
+        available_seats?: number;
+      }>(body, ['name', 'route_code']);
 
       if (!validation.isValid) {
         return NextResponse.json(
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { name, route_code, capacity, is_active = true } = body;
+      const { name, route_code, available_seats, is_active = true } = body;
 
       // Check if route_code already exists
       const { data: existingBus } = await supabaseAdmin
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         .insert({
           name,
           route_code,
-          capacity,
+          available_seats: available_seats ?? 10,
           is_active
         })
         .select()
@@ -72,13 +72,13 @@ export async function POST(request: NextRequest) {
         throw error;
       }
 
-      // Create corresponding bus availability record
-      await supabaseAdmin
-        .from('bus_availability')
-        .insert({
-          bus_route: route_code,
-          available_seats: capacity
-        });
+            // Initialize available_seats if not provided
+      if (newBus && (newBus as any).available_seats == null) {
+        await supabaseAdmin
+          .from('buses')
+          .update({ available_seats: 10 })
+          .eq('id', newBus.id);
+      }
 
       return createApiResponse(newBus, undefined, 201);
     } catch (error) {
@@ -97,8 +97,9 @@ export async function PUT(request: NextRequest) {
       const validation = validateRequestBody<{
         id: number;
         name: string;
-        capacity: number;
-      }>(body, ['id', 'name', 'capacity']);
+        available_seats?: number;
+        is_active?: boolean;
+      }>(body, ['id', 'name']);
 
       if (!validation.isValid) {
         return NextResponse.json(
@@ -107,15 +108,15 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      const { id, name, capacity, is_active } = body;
+      const { id, name, is_active, available_seats } = body;
 
       // Update bus
       const { data: updatedBus, error } = await supabaseAdmin
         .from('buses')
         .update({
           name,
-          capacity,
           is_active,
+          available_seats,
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
@@ -124,17 +125,6 @@ export async function PUT(request: NextRequest) {
 
       if (error) {
         throw error;
-      }
-
-      // Update bus availability if capacity changed
-      if (capacity) {
-        await supabaseAdmin
-          .from('bus_availability')
-          .update({
-            available_seats: capacity,
-            updated_at: new Date().toISOString()
-          })
-          .eq('bus_route', updatedBus.route_code);
       }
 
       return createApiResponse(updatedBus);
@@ -182,11 +172,7 @@ export async function DELETE(request: NextRequest) {
         throw deleteError;
       }
 
-      // Delete corresponding bus availability record
-      await supabaseAdmin
-        .from('bus_availability')
-        .delete()
-        .eq('bus_route', bus.route_code);
+      // No separate bus_availability table anymore
 
       return createApiResponse({ message: 'Bus deleted successfully' });
     } catch (error) {

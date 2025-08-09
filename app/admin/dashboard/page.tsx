@@ -7,11 +7,13 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PageTransition } from '@/components/ui/page-transition';
 import { useAdmin, withAdminAuth } from '@/contexts/AdminContext';
-import { Settings, Bus, Calendar, Users, LogOut, Plus, Edit, Trash2 } from 'lucide-react';
+import { Settings, Bus, Calendar, Users, LogOut, Plus, Edit, Trash2, Route, MapPin, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 interface AdminData {
   bookingEnabled: boolean;
@@ -24,7 +26,7 @@ interface Bus {
   id: number;
   name: string;
   route_code: string;
-  capacity: number;
+  available_seats: number;
   is_active: boolean;
 }
 
@@ -36,15 +38,25 @@ interface BookingStats {
   estimatedRevenue: number;
 }
 
+interface Booking {
+  id: number;
+  admission_number: string;
+  student_name: string;
+  bus_route: string;
+  destination: string;
+  payment_status: boolean;
+  created_at: string;
+}
+
 function AdminDashboard() {
   const { user, logout } = useAdmin();
+  const router = useRouter();
   const [adminData, setAdminData] = useState<AdminData>({
     bookingEnabled: false,
     goDate: '',
     returnDate: '',
     busAvailability: {},
   });
-  const [buses, setBuses] = useState<Bus[]>([]);
   const [bookingStats, setBookingStats] = useState<BookingStats>({
     totalBookings: 0,
     paidBookings: 0,
@@ -52,12 +64,21 @@ function AdminDashboard() {
     recentBookings: 0,
     estimatedRevenue: 0,
   });
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsPage, setBookingsPage] = useState(1);
+  const [bookingsTotalPages, setBookingsTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     fetchAllData();
+    fetchBookings();
   }, []);
+
+  useEffect(() => {
+    fetchBookings();
+  }, [bookingsPage]);
 
   const fetchAllData = async () => {
     try {
@@ -115,6 +136,23 @@ function AdminDashboard() {
     }
   };
 
+  const fetchBookings = async () => {
+    try {
+      const response = await fetch(`/api/admin/bookings?page=${bookingsPage}&limit=25`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setBookings(result.data.bookings);
+          setBookingsTotalPages(result.data.pagination.totalPages);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch bookings:', error);
+    }
+  };
+
   const handleSaveSettings = async () => {
     setIsSaving(true);
 
@@ -142,15 +180,7 @@ function AdminDashboard() {
     }
   };
 
-  const updateBusAvailability = (busRoute: string, seats: number) => {
-    setAdminData(prev => ({
-      ...prev,
-      busAvailability: {
-        ...prev.busAvailability,
-        [busRoute]: Math.max(0, seats),
-      },
-    }));
-  };
+
 
   if (isLoading) {
     return (
@@ -187,6 +217,43 @@ function AdminDashboard() {
             </Button>
           </motion.div>
 
+          {/* Navigation Links */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.05 }}
+            className="mb-8"
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  Quick Navigation
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Button
+                    onClick={() => router.push('/admin/buses')}
+                    variant="outline"
+                    className="flex items-center gap-2 h-12"
+                  >
+                    <Bus className="w-5 h-5" />
+                    Bus Management
+                  </Button>
+                  <Button
+                    onClick={() => router.push('/admin/routes')}
+                    variant="outline"
+                    className="flex items-center gap-2 h-12"
+                  >
+                    <Route className="w-5 h-5" />
+                    Route Management
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             {/* Booking Control */}
             <motion.div
@@ -207,9 +274,36 @@ function AdminDashboard() {
                     <Switch
                       id="booking-toggle"
                       checked={adminData.bookingEnabled}
-                      onCheckedChange={(checked) =>
-                        setAdminData(prev => ({ ...prev, bookingEnabled: checked }))
-                      }
+                      onCheckedChange={async (checked) => {
+                        const newData = { ...adminData, bookingEnabled: checked };
+                        setAdminData(newData);
+                        
+                        // Auto-save when toggled
+                        try {
+                          const response = await fetch('/api/admin/settings', {
+                            method: 'PATCH',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(newData),
+                            credentials: 'include'
+                          });
+
+                          const result = await response.json();
+
+                          if (response.ok && result.success) {
+                            toast.success(`Booking ${checked ? 'enabled' : 'disabled'} successfully`);
+                          } else {
+                            // Revert on error
+                            setAdminData(adminData);
+                            toast.error(result.error || 'Failed to update booking status');
+                          }
+                        } catch (error) {
+                          // Revert on error
+                          setAdminData(adminData);
+                          toast.error('Failed to update booking status');
+                        }
+                      }}
                     />
                   </div>
                   <Badge
@@ -258,6 +352,21 @@ function AdminDashboard() {
                       }
                     />
                   </div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.6 }}
+                    className="text-center"
+                  >
+                    <Button
+                      onClick={handleSaveSettings}
+                      disabled={isSaving}
+                      size="lg"
+                      className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold px-8 py-3 rounded-lg transition-all duration-300 transform hover:scale-105"
+                    >
+                      {isSaving ? 'Saving...' : 'Update Dates'}
+                    </Button>
+                  </motion.div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -296,7 +405,7 @@ function AdminDashboard() {
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Available Seats:</span>
                       <span className="font-semibold">
-                        {Object.values(adminData.busAvailability).reduce((sum, seats) => sum + seats, 0)}
+                        {buses.reduce((sum, b) => sum + (b.available_seats || 0), 0)}
                       </span>
                     </div>
                   </div>
@@ -305,7 +414,7 @@ function AdminDashboard() {
             </motion.div>
           </div>
 
-          {/* Bus Management */}
+          {/* Bus Availability Overview */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -315,7 +424,7 @@ function AdminDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bus className="w-5 h-5" />
-                  Bus Seat Management
+                  Bus Availability Overview
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -324,20 +433,12 @@ function AdminDashboard() {
                     <Card key={bus.id} className="border-gray-200">
                       <CardContent className="p-4">
                         <h4 className="font-semibold text-gray-800 mb-2">{bus.name}</h4>
-                        <Label htmlFor={`seats-${bus.route}`} className="text-sm text-gray-600">
-                          Available Seats
-                        </Label>
-                        <Input
-                          id={`seats-${bus.route}`}
-                          type="number"
-                          min="0"
-                          max="60"
-                          value={adminData.busAvailability[bus.route] || 0}
-                          onChange={(e) =>
-                            updateBusAvailability(bus.route, parseInt(e.target.value) || 0)
-                          }
-                          className="mt-1"
-                        />
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Available Seats:</span>
+                          <Badge variant="outline" className="text-lg font-semibold">
+                            {bus.available_seats || 0}
+                          </Badge>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -346,21 +447,93 @@ function AdminDashboard() {
             </Card>
           </motion.div>
 
-          {/* Save Button */}
+          {/* Bookings Table */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.5 }}
-            className="mt-8 text-center"
+            className="mt-8"
           >
-            <Button
-              onClick={handleSaveSettings}
-              disabled={isSaving}
-              size="lg"
-              className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold px-8 py-3 rounded-lg transition-all duration-300 transform hover:scale-105"
-            >
-              {isSaving ? 'Saving...' : 'Save All Settings'}
-            </Button>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5" />
+                  Recent Bookings
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Student Name</TableHead>
+                        <TableHead>Admission Number</TableHead>
+                        <TableHead>Bus Route</TableHead>
+                        <TableHead>Destination</TableHead>
+                        <TableHead>Payment Status</TableHead>
+                        <TableHead>Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {bookings.map((booking) => (
+                        <TableRow key={booking.id}>
+                          <TableCell className="font-medium">{booking.student_name}</TableCell>
+                          <TableCell>{booking.admission_number}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{booking.bus_route}</Badge>
+                          </TableCell>
+                          <TableCell>{booking.destination}</TableCell>
+                          <TableCell>
+                            <Badge variant={booking.payment_status ? "default" : "secondary"}>
+                              {booking.payment_status ? "Paid" : "Pending"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(booking.created_at).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* Pagination */}
+                {bookingsTotalPages > 1 && (
+                  <div className="flex items-center justify-between space-x-2 py-4">
+                    <div className="text-sm text-gray-500">
+                      Page {bookingsPage} of {bookingsTotalPages}
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBookingsPage(Math.max(1, bookingsPage - 1))}
+                        disabled={bookingsPage === 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBookingsPage(Math.min(bookingsTotalPages, bookingsPage + 1))}
+                        disabled={bookingsPage === bookingsTotalPages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {bookings.length === 0 && (
+                  <div className="text-center py-8">
+                    <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                    <p className="text-gray-500">No bookings found</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </motion.div>
         </div>
       </div>

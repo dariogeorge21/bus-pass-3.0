@@ -148,13 +148,9 @@ export async function DELETE(request: NextRequest) {
       }
 
       // Restore seat availability
-      const { error: updateError } = await supabaseAdmin
-        .from('bus_availability')
-        .update({
-          available_seats: supabaseAdmin.sql`available_seats + 1`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('bus_route', booking.bus_route);
+      const { error: updateError } = await supabaseAdmin.rpc('increase_buses_available_seats', {
+        route: booking.bus_route
+      });
 
       if (updateError) {
         console.error('Failed to restore seat availability:', updateError);
@@ -163,55 +159,6 @@ export async function DELETE(request: NextRequest) {
       return createApiResponse({ message: 'Booking deleted successfully' });
     } catch (error) {
       return handleApiError(error, 'Failed to delete booking');
-    }
-  });
-}
-
-// GET /api/admin/bookings/stats - Get booking statistics
-export async function GET_STATS(request: NextRequest) {
-  return withAuth(request, async (req) => {
-    try {
-      // Get total bookings
-      const { count: totalBookings } = await supabaseAdmin
-        .from('bookings')
-        .select('*', { count: 'exact', head: true });
-
-      // Get paid bookings
-      const { count: paidBookings } = await supabaseAdmin
-        .from('bookings')
-        .select('*', { count: 'exact', head: true })
-        .eq('payment_status', true);
-
-      // Get bookings by route
-      const { data: routeStats } = await supabaseAdmin
-        .from('bookings')
-        .select('bus_route')
-        .then(({ data }) => {
-          const stats: { [key: string]: number } = {};
-          data?.forEach(booking => {
-            stats[booking.bus_route] = (stats[booking.bus_route] || 0) + 1;
-          });
-          return { data: Object.entries(stats).map(([route, count]) => ({ route, count })) };
-        });
-
-      // Get recent bookings (last 7 days)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      const { count: recentBookings } = await supabaseAdmin
-        .from('bookings')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', sevenDaysAgo.toISOString());
-
-      return createApiResponse({
-        totalBookings: totalBookings || 0,
-        paidBookings: paidBookings || 0,
-        pendingBookings: (totalBookings || 0) - (paidBookings || 0),
-        recentBookings: recentBookings || 0,
-        routeStats: routeStats || []
-      });
-    } catch (error) {
-      return handleApiError(error, 'Failed to fetch booking statistics');
     }
   });
 }
