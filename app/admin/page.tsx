@@ -36,7 +36,7 @@ export default function AdminLoginPage() {
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
-    
+
     try {
       const response = await fetch('/api/admin/login', {
         method: 'POST',
@@ -46,11 +46,15 @@ export default function AdminLoginPage() {
         body: JSON.stringify(data),
       });
 
-      if (response.ok) {
+      const result = await response.json();
+
+      if (response.ok && result.success) {
         toast.success('Login successful');
+        // Store user data in localStorage for client-side access
+        localStorage.setItem('admin_user', JSON.stringify(result.data.user));
         router.push('/admin/dashboard');
       } else {
-        toast.error('Invalid credentials');
+        toast.error(result.error || 'Invalid credentials');
       }
     } catch (error) {
       toast.error('Login failed. Please try again.');

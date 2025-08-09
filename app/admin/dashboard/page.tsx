@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { PageTransition } from '@/components/ui/page-transition';
-import { buses } from '@/lib/data';
-import { Settings, Bus, Calendar, Users, LogOut } from 'lucide-react';
+import { useAdmin, withAdminAuth } from '@/contexts/AdminContext';
+import { Settings, Bus, Calendar, Users, LogOut, Plus, Edit, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -20,38 +20,104 @@ interface AdminData {
   busAvailability: { [key: string]: number };
 }
 
-export default function AdminDashboard() {
+interface Bus {
+  id: number;
+  name: string;
+  route_code: string;
+  capacity: number;
+  is_active: boolean;
+}
+
+interface BookingStats {
+  totalBookings: number;
+  paidBookings: number;
+  pendingBookings: number;
+  recentBookings: number;
+  estimatedRevenue: number;
+}
+
+function AdminDashboard() {
+  const { user, logout } = useAdmin();
   const [adminData, setAdminData] = useState<AdminData>({
     bookingEnabled: false,
     goDate: '',
     returnDate: '',
     busAvailability: {},
   });
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [bookingStats, setBookingStats] = useState<BookingStats>({
+    totalBookings: 0,
+    paidBookings: 0,
+    pendingBookings: 0,
+    recentBookings: 0,
+    estimatedRevenue: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    fetchAdminData();
+    fetchAllData();
   }, []);
 
-  const fetchAdminData = async () => {
+  const fetchAllData = async () => {
     try {
-      // Fetch current settings
-      const response = await fetch('/api/admin/settings');
-      if (response.ok) {
-        const data = await response.json();
-        setAdminData(data);
-      }
+      await Promise.all([
+        fetchAdminData(),
+        fetchBuses(),
+        fetchBookingStats()
+      ]);
     } catch (error) {
-      toast.error('Failed to fetch admin data');
+      toast.error('Failed to fetch data');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const fetchAdminData = async () => {
+    try {
+      const response = await fetch('/api/admin/settings');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setAdminData(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch admin data:', error);
+    }
+  };
+
+  const fetchBuses = async () => {
+    try {
+      const response = await fetch('/api/admin/buses');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setBuses(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch buses:', error);
+    }
+  };
+
+  const fetchBookingStats = async () => {
+    try {
+      const response = await fetch('/api/admin/bookings/stats');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setBookingStats(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch booking stats:', error);
+    }
+  };
+
   const handleSaveSettings = async () => {
     setIsSaving(true);
-    
+
     try {
       const response = await fetch('/api/admin/settings', {
         method: 'PATCH',
@@ -59,12 +125,15 @@ export default function AdminDashboard() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(adminData),
+        credentials: 'include'
       });
 
-      if (response.ok) {
+      const result = await response.json();
+
+      if (response.ok && result.success) {
         toast.success('Settings updated successfully');
       } else {
-        toast.error('Failed to update settings');
+        toast.error(result.error || 'Failed to update settings');
       }
     } catch (error) {
       toast.error('Failed to update settings');
@@ -106,9 +175,13 @@ export default function AdminDashboard() {
           >
             <div>
               <h1 className="text-3xl font-bold text-gray-800 mb-2">Admin Dashboard</h1>
-              <p className="text-gray-600">Manage bus booking system settings</p>
+              <p className="text-gray-600">Welcome back, {user?.full_name}</p>
             </div>
-            <Button variant="outline" className="text-red-600 border-red-600 hover:bg-red-50">
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-600 hover:bg-red-50"
+              onClick={logout}
+            >
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -209,6 +282,18 @@ export default function AdminDashboard() {
                       <span className="font-semibold">{buses.length}</span>
                     </div>
                     <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Total Bookings:</span>
+                      <span className="font-semibold">{bookingStats.totalBookings}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Paid Bookings:</span>
+                      <span className="font-semibold text-green-600">{bookingStats.paidBookings}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Pending:</span>
+                      <span className="font-semibold text-orange-600">{bookingStats.pendingBookings}</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Available Seats:</span>
                       <span className="font-semibold">
                         {Object.values(adminData.busAvailability).reduce((sum, seats) => sum + seats, 0)}
@@ -282,3 +367,5 @@ export default function AdminDashboard() {
     </PageTransition>
   );
 }
+
+export default withAdminAuth(AdminDashboard);
