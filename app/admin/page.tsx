@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { PageTransition } from '@/components/ui/page-transition';
-import { Shield, Eye, EyeOff } from 'lucide-react';
+import { Shield, Eye, EyeOff, Home } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -143,6 +143,19 @@ export default function AdminLoginPage() {
                   </Button>
                 </form>
               </Form>
+              
+              {/* Navigation Link to Home Page */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => router.push('/')}
+                  className="w-full text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                >
+                  <Home className="w-4 h-4 mr-2" />
+                  Back to Home Page
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
