@@ -7,15 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageTransition } from '@/components/ui/page-transition';
 import { useBooking } from '@/contexts/BookingContext';
+import { StudentProvider, useStudent } from '@/contexts/StudentContext';
 import { Ticket, Printer, Plus, Calendar, MapPin, User, CreditCard } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 
-export default function TicketPage() {
+function TicketPage() {
   const [travelDates, setTravelDates] = useState({ goDate: '', returnDate: '' });
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { bookingData, resetBookingData } = useBooking();
+  const { studentName, admissionNumber } = useStudent();
 
   useEffect(() => {
     fetchTravelDates();
@@ -101,7 +103,7 @@ export default function TicketPage() {
                       <User className="w-5 h-5 text-blue-600" />
                       <div>
                         <p className="text-sm text-gray-600">Student Name</p>
-                        <p className="font-semibold">{bookingData.studentName}</p>
+                        <p className="font-semibold">{studentName}</p>
                       </div>
                     </div>
 
@@ -109,7 +111,7 @@ export default function TicketPage() {
                       <CreditCard className="w-5 h-5 text-blue-600" />
                       <div>
                         <p className="text-sm text-gray-600">Admission Number</p>
-                        <p className="font-semibold">{bookingData.admissionNumber}</p>
+                        <p className="font-semibold">{admissionNumber}</p>
                       </div>
                     </div>
 
@@ -192,5 +194,13 @@ export default function TicketPage() {
         </div>
       </div>
     </PageTransition>
+  );
+}
+
+export default function TicketPageWrapper() {
+  return (
+    <StudentProvider>
+      <TicketPage />
+    </StudentProvider>
   );
 }

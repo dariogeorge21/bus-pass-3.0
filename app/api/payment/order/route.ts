@@ -31,13 +31,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Razorpay not configured' }, { status: 500 });
     }
 
-    // Validate key format (Razorpay keys typically start with 'rzp_')
-    if (!keyId.startsWith('rzp_') || !keySecret.startsWith('rzp_')) {
-      console.error('Invalid Razorpay key format:', { 
+    // Validate key format (Razorpay key ID typically starts with 'rzp_')
+    if (!keyId.startsWith('rzp_')) {
+      console.error('Invalid Razorpay key ID format:', { 
         keyIdStartsWithRzp: keyId.startsWith('rzp_'),
-        keySecretStartsWithRzp: keySecret.startsWith('rzp_')
+        keyIdLength: keyId.length
       });
-      return NextResponse.json({ error: 'Invalid Razorpay credentials format' }, { status: 500 });
+      return NextResponse.json({ error: 'Invalid Razorpay key ID format' }, { status: 500 });
+    }
+
+    // Key secret validation - some environments might not start with 'rzp_'
+    if (!keySecret || keySecret.length < 10) {
+      console.error('Invalid Razorpay key secret:', { 
+        keySecretLength: keySecret?.length,
+        keySecretStartsWithRzp: keySecret?.startsWith('rzp_')
+      });
+      return NextResponse.json({ error: 'Invalid Razorpay key secret' }, { status: 500 });
     }
 
     const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');

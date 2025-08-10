@@ -123,7 +123,7 @@ export default function PaymentPage() {
 
             if (verifyResponse.ok && verifyData.success) {
               // Save booking
-              await saveBooking(true);
+              await saveBooking(true, response);
               toast.success('Payment successful!');
               router.push('/ticket');
             } else {
@@ -166,18 +166,27 @@ export default function PaymentPage() {
     }
   };
 
-  const saveBooking = async (paymentStatus: boolean) => {
+  const saveBooking = async (paymentStatus: boolean, razorpayData?: {
+    razorpay_payment_id?: string | null;
+    razorpay_order_id?: string | null;
+    razorpay_signature?: string | null;
+  }) => {
     try {
       const bookingPayload = {
-        studentName: bookingData.studentName,
+        // Database schema order
         admissionNumber: bookingData.admissionNumber,
+        studentName: bookingData.studentName,
         busRoute: bookingData.busRoute,
-        busName: bookingData.busName,
         destination: bookingData.destination,
-        fare: bookingData.fare,
         paymentStatus,
         timestamp: new Date().toISOString(),
+        // Razorpay fields - include for online payments, null for upfront payments
+        razorpay_payment_id: razorpayData?.razorpay_payment_id || null,
+        razorpay_order_id: razorpayData?.razorpay_order_id || null,
+        razorpay_signature: razorpayData?.razorpay_signature || null,
       };
+
+      console.log('Saving booking with payload:', bookingPayload);
 
       const response = await fetch('/api/bookings', {
         method: 'POST',
@@ -190,7 +199,9 @@ export default function PaymentPage() {
       if (response.ok) {
         updateBookingData({ paymentStatus });
       } else {
-        throw new Error('Booking failed');
+        const errorData = await response.json();
+        console.error('Booking API error:', errorData);
+        throw new Error(errorData.error || 'Booking failed');
       }
     } catch (error) {
       console.error('Booking error:', error);
@@ -205,7 +216,12 @@ export default function PaymentPage() {
       setIsLoading(true);
       setError(null);
       try {
-        await saveBooking(false);
+        // For upfront payments, explicitly pass null values for Razorpay fields
+        await saveBooking(false, {
+          razorpay_payment_id: null,
+          razorpay_order_id: null,
+          razorpay_signature: null,
+        });
         toast.success('Booking confirmed! Pay at college.');
         router.push('/ticket');
       } catch (error) {
@@ -320,7 +336,7 @@ export default function PaymentPage() {
 
               {/* Upfront Payment */}
 
-              {/* <Card
+              <Card
                 className={`cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:bg-gradient-to-r hover:from-orange-50 hover:to-yellow-50 ${
                   isLoading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
@@ -335,7 +351,7 @@ export default function PaymentPage() {
                     Reserve seat and pay at college
                   </p>
                 </CardContent>
-              </Card>*/}
+              </Card>
             </motion.div>
           </div>
         </div>
