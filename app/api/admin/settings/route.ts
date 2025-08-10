@@ -14,10 +14,10 @@ export async function GET() {
       console.error('Error fetching admin settings:', adminError);
     }
 
-    // Get bus availability
+    // Get bus availability from buses table
     const { data: busData, error: busError } = await supabase
-      .from('bus_availability')
-      .select('bus_route, available_seats');
+      .from('buses')
+      .select('route_code, available_seats');
 
     if (busError) {
       console.error('Error fetching bus availability:', busError);
@@ -25,7 +25,7 @@ export async function GET() {
 
     const busAvailability: { [key: string]: number } = {};
     busData?.forEach((bus) => {
-      busAvailability[bus.bus_route] = bus.available_seats;
+      busAvailability[bus.route_code] = bus.available_seats;
     });
 
     return createApiResponse({
