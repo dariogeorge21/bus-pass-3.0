@@ -351,6 +351,14 @@ function AdminDashboard() {
                       }
                     />
                   </div>
+                  <Button
+                    onClick={handleSaveSettings}
+                    disabled={isSaving}
+                    size="lg"
+                    className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold px-8 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 mx-auto block"
+                  >
+                    {isSaving ? 'Saving...' : 'Update Dates'}
+                  </Button>
                 </CardContent>
               </Card>
             </motion.div>
@@ -518,23 +526,6 @@ function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
-          </motion.div>
-
-          {/* Save Button */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
-            className="mt-8 text-center"
-          >
-            <Button
-              onClick={handleSaveSettings}
-              disabled={isSaving}
-              size="lg"
-              className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold px-8 py-3 rounded-lg transition-all duration-300 transform hover:scale-105"
-            >
-              {isSaving ? 'Saving...' : 'Save All Settings'}
-            </Button>
           </motion.div>
         </div>
       </div>
