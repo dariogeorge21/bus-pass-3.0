@@ -7,21 +7,32 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageTransition } from '@/components/ui/page-transition';
 import { useBooking } from '@/contexts/BookingContext';
-import { StudentProvider, useStudent } from '@/contexts/StudentContext';
-import { Ticket, Printer, Plus, Calendar, MapPin, User, CreditCard } from 'lucide-react';
+import { Ticket, Printer, Plus, Calendar, MapPin, User, CreditCard, Bus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 
-function TicketPage() {
+export default function TicketPage() {
   const [travelDates, setTravelDates] = useState({ goDate: '', returnDate: '' });
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { bookingData, resetBookingData } = useBooking();
-  const { studentName, admissionNumber } = useStudent();
 
   useEffect(() => {
+    // Check if booking data is available
+    if (!bookingData.studentName || !bookingData.admissionNumber) {
+      console.log('Missing student data in booking context, redirecting to details page');
+      router.push('/details');
+      return;
+    }
+
+    if (!bookingData.busRoute || !bookingData.destination) {
+      console.log('Missing booking data, redirecting to buses page');
+      router.push('/buses');
+      return;
+    }
+
     fetchTravelDates();
-  }, []);
+  }, [bookingData, router]);
 
   const fetchTravelDates = async () => {
     try {
@@ -53,6 +64,7 @@ function TicketPage() {
     router.push('/');
   };
 
+  // Show loading state while checking data or fetching travel dates
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -62,6 +74,11 @@ function TicketPage() {
         </div>
       </div>
     );
+  }
+
+  // If no booking data, don't render anything (will redirect)
+  if (!bookingData.studentName || !bookingData.admissionNumber || !bookingData.busRoute || !bookingData.destination) {
+    return null;
   }
 
   return (
@@ -99,11 +116,12 @@ function TicketPage() {
               <CardContent className="p-8 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
+                    {/* Student Information from BookingContext */}
                     <div className="flex items-center gap-3">
                       <User className="w-5 h-5 text-blue-600" />
                       <div>
                         <p className="text-sm text-gray-600">Student Name</p>
-                        <p className="font-semibold">{studentName}</p>
+                        <p className="font-semibold">{bookingData.studentName}</p>
                       </div>
                     </div>
 
@@ -111,16 +129,27 @@ function TicketPage() {
                       <CreditCard className="w-5 h-5 text-blue-600" />
                       <div>
                         <p className="text-sm text-gray-600">Admission Number</p>
-                        <p className="font-semibold">{admissionNumber}</p>
+                        <p className="font-semibold">{bookingData.admissionNumber}</p>
+                      </div>
+                    </div>
+
+                    {/* Booking Information from BookingContext */}
+                    <div className="flex items-center gap-3">
+                      <Bus className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <p className="text-sm text-gray-600">Bus Route</p>
+                        <p className="font-semibold">{bookingData.busName}</p>
+                        {bookingData.busName && (
+                          <p className="text-sm text-gray-500">{bookingData.busRoute}</p>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <MapPin className="w-5 h-5 text-blue-600" />
                       <div>
-                        <p className="text-sm text-gray-600">Bus & Destination</p>
-                        <p className="font-semibold">{bookingData.busName}</p>
-                        <p className="text-sm text-gray-600">{bookingData.destination}</p>
+                        <p className="text-sm text-gray-600">Destination</p>
+                        <p className="font-semibold">{bookingData.destination}</p>
                       </div>
                     </div>
                   </div>
@@ -164,6 +193,11 @@ function TicketPage() {
                   <p className="text-xs text-gray-500 text-center">
                     Booked on: {format(new Date(), 'PPpp')}
                   </p>
+                  {bookingData.paymentStatus && (
+                    <p className="text-xs text-green-600 text-center mt-1">
+                      ✓ Payment completed successfully
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -194,13 +228,5 @@ function TicketPage() {
         </div>
       </div>
     </PageTransition>
-  );
-}
-
-export default function TicketPageWrapper() {
-  return (
-    <StudentProvider>
-      <TicketPage />
-    </StudentProvider>
   );
 }

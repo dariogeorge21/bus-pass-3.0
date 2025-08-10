@@ -65,8 +65,8 @@ export default function DetailsPage() {
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
-    
-    // Update booking context
+
+    // Update booking context with student information
     updateBookingData({
       studentName: data.studentName,
       admissionNumber: data.admissionNumber,
