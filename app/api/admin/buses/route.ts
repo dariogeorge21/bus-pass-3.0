@@ -31,7 +31,9 @@ export async function POST(request: NextRequest) {
       const validation = validateRequestBody<{
         name: string;
         route_code: string;
+        total_seats?: number;
         available_seats?: number;
+        is_active?: boolean;
       }>(body, ['name', 'route_code']);
 
       if (!validation.isValid) {
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { name, route_code, capacity, is_active = true } = body;
+      const { name, route_code, total_seats = 10, available_seats = 10, is_active = true } = body;
       const supabaseAdmin = getSupabaseAdmin();
 
       // Check if route_code already exists
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
         .insert({
           name,
           route_code,
-          capacity,
+          total_seats,
           is_active
         })
         .select()
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
         .from('bus_availability')
         .insert({
           bus_route: route_code,
-          available_seats: capacity
+          available_seats: available_seats
         });
 
       return createApiResponse(newBus, undefined, 201);
@@ -99,8 +101,10 @@ export async function PUT(request: NextRequest) {
       const validation = validateRequestBody<{
         id: number;
         name: string;
-        capacity: number;
-      }>(body, ['id', 'name', 'capacity']);
+        total_seats?: number;
+        available_seats?: number;
+        is_active?: boolean;
+      }>(body, ['id', 'name']);
 
       if (!validation.isValid) {
         return NextResponse.json(
@@ -109,7 +113,7 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      const { id, name, capacity, is_active } = body;
+      const { id, name, total_seats, available_seats, is_active } = body;
       const supabaseAdmin = getSupabaseAdmin();
 
       // Update bus
@@ -117,7 +121,7 @@ export async function PUT(request: NextRequest) {
         .from('buses')
         .update({
           name,
-          capacity,
+          total_seats,
           is_active,
           updated_at: new Date().toISOString()
         })
@@ -129,12 +133,12 @@ export async function PUT(request: NextRequest) {
         throw error;
       }
 
-      // Update bus availability if capacity changed
-      if (capacity) {
+      // Update bus availability if available_seats changed
+      if (available_seats !== undefined) {
         await supabaseAdmin
           .from('bus_availability')
           .update({
-            available_seats: capacity,
+            available_seats: available_seats,
             updated_at: new Date().toISOString()
           })
           .eq('bus_route', updatedBus.route_code);

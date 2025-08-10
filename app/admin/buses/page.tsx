@@ -19,6 +19,7 @@ interface BusData {
   name: string;
   route_code: string;
   available_seats?: number;
+  total_seats?: number;
   is_active: boolean;
 }
 
@@ -32,6 +33,7 @@ function BusManagement() {
     name: '',
     route_code: '',
     available_seats: 10,
+    total_seats: 10,
     is_active: true
   });
 
@@ -72,7 +74,7 @@ function BusManagement() {
         toast.success('Bus created successfully');
         setBuses([...buses, result.data]);
         setIsCreating(false);
-        setFormData({ name: '', route_code: '', available_seats: 10, is_active: true });
+        setFormData({ name: '', route_code: '', available_seats: 10, total_seats: 10, is_active: true });
       } else {
         toast.error(result.error || 'Failed to create bus');
       }
@@ -205,6 +207,17 @@ function BusManagement() {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="total_seats">Total Seats</Label>
+                      <Input
+                        id="total_seats"
+                        type="number"
+                        min="1"
+                        max="200"
+                        value={formData.total_seats}
+                        onChange={(e) => setFormData({ ...formData, total_seats: parseInt(e.target.value) || 10 })}
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="available_seats">Available Seats</Label>
                       <Input
                         id="available_seats"
@@ -273,6 +286,17 @@ function BusManagement() {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="edit-total_seats">Total Seats</Label>
+                      <Input
+                        id="edit-total_seats"
+                        type="number"
+                        min="1"
+                        max="200"
+                        value={editingBus.total_seats}
+                        onChange={(e) => setEditingBus({ ...editingBus, total_seats: parseInt(e.target.value) || 10 })}
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="edit-available_seats">Available Seats</Label>
                       <Input
                         id="edit-available_seats"
@@ -329,11 +353,19 @@ function BusManagement() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-sm text-gray-600">Available Seats:</span>
-                      <Badge variant="outline" className="font-semibold">
-                        {bus.available_seats ?? 0}
-                      </Badge>
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Total Seats:</span>
+                        <Badge variant="outline" className="font-semibold">
+                          {bus.total_seats ?? 50}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Available Seats:</span>
+                        <Badge variant="outline" className="font-semibold">
+                          {bus.available_seats ?? 0}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button

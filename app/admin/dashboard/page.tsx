@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PageTransition } from '@/components/ui/page-transition';
 import { useAdmin, withAdminAuth } from '@/contexts/AdminContext';
-import { Settings, Bus, Calendar, Users, LogOut, Plus, Edit, Trash2, Route, MapPin, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings, Bus, Calendar, Users, LogOut, Plus, Edit, Trash2, Route, MapPin, BookOpen, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -29,12 +29,17 @@ interface Bus {
   is_active: boolean;
 }
 
-interface BookingStats {
+
+
+interface NewBookingStats {
+  totalBuses: number;
   totalBookings: number;
+  currentBookings: number;
   paidBookings: number;
-  pendingBookings: number;
-  recentBookings: number;
-  estimatedRevenue: number;
+  unpaidBookings: number;
+  availableSeats: number;
+  totalCapacity: number;
+  occupancyRate: string;
 }
 
 interface Booking {
@@ -56,12 +61,16 @@ function AdminDashboard() {
     returnDate: '',
     busAvailability: {},
   });
-  const [bookingStats, setBookingStats] = useState<BookingStats>({
+
+  const [newBookingStats, setNewBookingStats] = useState<NewBookingStats>({
+    totalBuses: 0,
     totalBookings: 0,
+    currentBookings: 0,
     paidBookings: 0,
-    pendingBookings: 0,
-    recentBookings: 0,
-    estimatedRevenue: 0,
+    unpaidBookings: 0,
+    availableSeats: 0,
+    totalCapacity: 0,
+    occupancyRate: '0.0',
   });
   const [buses, setBuses] = useState<Bus[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -69,6 +78,7 @@ function AdminDashboard() {
   const [bookingsTotalPages, setBookingsTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     fetchAllData();
@@ -84,7 +94,7 @@ function AdminDashboard() {
       await Promise.all([
         fetchAdminData(),
         fetchBuses(),
-        fetchBookingStats()
+        fetchNewBookingStats()
       ]);
     } catch (error) {
       toast.error('Failed to fetch data');
@@ -121,17 +131,57 @@ function AdminDashboard() {
     }
   };
 
-  const fetchBookingStats = async () => {
+
+
+  const fetchNewBookingStats = async () => {
     try {
-      const response = await fetch('/api/admin/bookings/stats');
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          setBookingStats(result.data);
-        }
+      // Use the new detailed statistics endpoint for comprehensive data
+      const response = await fetch('/api/admin/analytics/detailed-stats');
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setNewBookingStats(result.data);
+      } else {
+        // Fallback to individual endpoints if detailed stats fail
+        const [totalBusesRes, totalBookingsRes, currentBookingsRes, availableSeatsRes] = await Promise.all([
+          fetch('/api/admin/analytics/total-buses'),
+          fetch('/api/admin/analytics/total-bookings'),
+          fetch('/api/admin/analytics/current-bookings'),
+          fetch('/api/admin/analytics/available-seats')
+        ]);
+
+        const [totalBusesData, totalBookingsData, currentBookingsData, availableSeatsData] = await Promise.all([
+          totalBusesRes.json(),
+          totalBookingsRes.json(),
+          currentBookingsRes.json(),
+          availableSeatsRes.json()
+        ]);
+
+        // Update state with individual endpoint results
+        setNewBookingStats({
+          totalBuses: totalBusesData.success ? totalBusesData.data : 0,
+          totalBookings: totalBookingsData.success ? totalBookingsData.data : 0,
+          currentBookings: currentBookingsData.success ? currentBookingsData.data : 0,
+          paidBookings: 0, // Not available from individual endpoints
+          unpaidBookings: 0, // Not available from individual endpoints
+          availableSeats: availableSeatsData.success ? availableSeatsData.data : 0,
+          totalCapacity: 0, // Not available from individual endpoints
+          occupancyRate: '0.0'
+        });
       }
     } catch (error) {
-      console.error('Failed to fetch booking stats:', error);
+      console.error('Failed to fetch new booking stats:', error);
+      // Set default values on error
+      setNewBookingStats({
+        totalBuses: 0,
+        totalBookings: 0,
+        currentBookings: 0,
+        paidBookings: 0,
+        unpaidBookings: 0,
+        availableSeats: 0,
+        totalCapacity: 0,
+        occupancyRate: '0.0'
+      });
     }
   };
 
@@ -179,7 +229,34 @@ function AdminDashboard() {
     }
   };
 
+  const handleResetSeats = async () => {
+    if (!confirm('Are you sure you want to reset all booking data? This will delete all bookings and restore all seats to their maximum capacity.')) {
+      return;
+    }
 
+    setIsResetting(true);
+
+    try {
+      const response = await fetch('/api/admin/analytics/reset', {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        toast.success('Booking data reset successfully');
+        // Refresh data to show updated statistics
+        await fetchAllData();
+      } else {
+        toast.error(result.error || 'Failed to reset booking data');
+      }
+    } catch (error) {
+      toast.error('Failed to reset booking data');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -253,12 +330,101 @@ function AdminDashboard() {
             </Card>
           </motion.div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* New Statistics Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="mb-8"
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Booking Statistics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{newBookingStats.totalBuses}</div>
+                    <div className="text-sm text-gray-600">Total Buses</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{newBookingStats.totalBookings}</div>
+                    <div className="text-sm text-gray-600">Total Bookings</div>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{newBookingStats.currentBookings}</div>
+                    <div className="text-sm text-gray-600">Current Bookings</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{newBookingStats.availableSeats}</div>
+                    <div className="text-sm text-gray-600">Available Seats</div>
+                  </div>
+                </div>
+
+                {/* Enhanced Statistics */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6 pt-4 border-t border-gray-200">
+                  <div className="text-center p-3 bg-emerald-50 rounded-lg">
+                    <div className="text-xl font-bold text-emerald-600">{newBookingStats.paidBookings}</div>
+                    <div className="text-sm text-gray-600">Paid Bookings</div>
+                  </div>
+                  <div className="text-center p-3 bg-amber-50 rounded-lg">
+                    <div className="text-xl font-bold text-amber-600">{newBookingStats.unpaidBookings}</div>
+                    <div className="text-sm text-gray-600">Unpaid Bookings</div>
+                  </div>
+                  <div className="text-center p-3 bg-indigo-50 rounded-lg">
+                    <div className="text-xl font-bold text-indigo-600">{newBookingStats.occupancyRate}%</div>
+                    <div className="text-sm text-gray-600">Occupancy Rate</div>
+                  </div>
+                </div>
+
+                {/* Capacity Information */}
+                <div className="bg-gray-50 p-4 rounded-lg mb-6">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">Total Capacity:</span>
+                    <span className="font-semibold text-gray-800">{newBookingStats.totalCapacity} seats</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm mt-2">
+                    <span className="text-gray-600">Occupied Seats:</span>
+                    <span className="font-semibold text-gray-800">{newBookingStats.totalCapacity - newBookingStats.availableSeats} seats</span>
+                  </div>
+                  <div className="mt-3">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${newBookingStats.occupancyRate}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Reset Seats Button */}
+                <div className="text-center">
+                  <Button
+                    onClick={handleResetSeats}
+                    disabled={isResetting}
+                    variant="outline"
+                    className="border-red-600 text-red-600 hover:bg-red-50"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    {isResetting ? 'Resetting...' : 'Reset All Data'}
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    This will delete all bookings and restore all seats to maximum capacity
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Booking Control */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
+              transition={{ duration: 0.5, delay: 0.15 }}
             >
               <Card>
                 <CardHeader>
@@ -363,54 +529,14 @@ function AdminDashboard() {
               </Card>
             </motion.div>
 
-            {/* Quick Stats */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    Quick Stats
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total Buses:</span>
-                      <span className="font-semibold">{buses.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total Bookings:</span>
-                      <span className="font-semibold">{bookingStats.totalBookings}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Paid Bookings:</span>
-                      <span className="font-semibold text-green-600">{bookingStats.paidBookings}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Pending:</span>
-                      <span className="font-semibold text-orange-600">{bookingStats.pendingBookings}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Available Seats:</span>
-                      <span className="font-semibold">
-                        {Object.values(adminData.busAvailability).reduce((sum, seats) => sum + seats, 0)}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+
           </div>
 
           {/* Bus Availability Overview */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
           >
             <Card>
               <CardHeader>
@@ -443,7 +569,7 @@ function AdminDashboard() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
             className="mt-8"
           >
             <Card>
