@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { PageTransition } from '@/components/ui/page-transition';
 import { useBooking } from '@/contexts/BookingContext';
 import { motion } from 'framer-motion';
-import { User, CreditCard } from 'lucide-react';
+import { User } from 'lucide-react';
+import { toast } from 'sonner';
 
 const formSchema = z.object({
   studentName: z.string()
@@ -26,6 +27,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export default function DetailsPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingBooking, setIsCheckingBooking] = useState(true);
   const router = useRouter();
   const { updateBookingData } = useBooking();
 
@@ -36,6 +38,30 @@ export default function DetailsPage() {
       admissionNumber: '',
     },
   });
+
+  // Check booking status on component mount
+  useEffect(() => {
+    const checkBookingStatus = async () => {
+      try {
+        const response = await fetch('/api/booking-status');
+        const data = await response.json();
+
+        if (!data.enabled) {
+          toast.error('Booking is currently disabled. Please try again later.');
+          router.push('/');
+          return;
+        }
+
+        setIsCheckingBooking(false);
+      } catch (error) {
+        console.error('Error checking booking status:', error);
+        toast.error('Unable to check booking status. Please try again.');
+        router.push('/');
+      }
+    };
+
+    checkBookingStatus();
+  }, [router]);
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
@@ -60,6 +86,29 @@ export default function DetailsPage() {
     }
     return value;
   };
+
+  // Show loading state while checking booking status
+  if (isCheckingBooking) {
+    return (
+      <PageTransition direction="right">
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="w-full max-w-md"
+          >
+            <Card className="shadow-2xl border-0 bg-white/90 backdrop-blur-sm">
+              <CardContent className="p-8 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Checking booking availability...</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition direction="right">
@@ -117,7 +166,7 @@ export default function DetailsPage() {
                         </FormControl>
                         <FormMessage />
                         <p className="text-sm text-gray-500 mt-1">
-                          Format: Year followed by department and registrtion number
+                          Format: Year followed by department and registration number
                         </p>
                       </FormItem>
                     )}

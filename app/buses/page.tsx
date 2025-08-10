@@ -28,7 +28,7 @@ export default function BusesPage() {
   useEffect(() => {
     // Check if student details are available
     if (!bookingData.studentName || !bookingData.admissionNumber) {
-      router.push('/details');
+      router.push('/');
       return;
     }
     fetchBuses();

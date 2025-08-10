@@ -26,7 +26,7 @@ export default function DestinationsPage({ params }: Params) {
   useEffect(() => {
     // Check if student details are available
     if (!bookingData.studentName || !bookingData.admissionNumber) {
-      router.push('/details');
+      router.push('/');
       return;
     }
 

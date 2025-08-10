@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PageTransition } from '@/components/ui/page-transition';
 import { useBooking } from '@/contexts/BookingContext';
-import { CreditCard, Wallet, ArrowLeft } from 'lucide-react';
+import { CreditCard, Wallet, ArrowLeft, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -19,6 +19,7 @@ declare global {
 export default function PaymentPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { bookingData, updateBookingData } = useBooking();
 
@@ -32,15 +33,22 @@ export default function PaymentPage() {
     // Load Razorpay script
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => setRazorpayLoaded(true);
-    script.onerror = () => {
-      console.error('Failed to load Razorpay script');
+    script.onload = () => {
+      console.log('Razorpay script loaded successfully');
+      setRazorpayLoaded(true);
+    };
+    script.onerror = (error) => {
+      console.error('Failed to load Razorpay script:', error);
+      setError('Payment gateway failed to load. Please refresh the page.');
       toast.error('Payment gateway failed to load');
     };
     document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script);
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existingScript) {
+        document.body.removeChild(existingScript);
+      }
     };
   }, [bookingData, router]);
 
@@ -50,9 +58,17 @@ export default function PaymentPage() {
       return;
     }
 
+    if (!bookingData.fare || bookingData.fare <= 0) {
+      toast.error('Invalid fare amount. Please try again.');
+      return;
+    }
+
     setIsLoading(true);
+    setError(null);
 
     try {
+      console.log('Initiating payment with fare:', bookingData.fare);
+      
       // Create order
       const orderResponse = await fetch('/api/payment/order', {
         method: 'POST',
@@ -60,16 +76,23 @@ export default function PaymentPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          amount: bookingData.fare * 100, // Convert to paise
+          amount: Math.round(bookingData.fare * 100), // Convert to paise and ensure it's an integer
           currency: 'INR',
           receipt: `bus_booking_${Date.now()}`,
         }),
       });
 
+      console.log('Order response status:', orderResponse.status);
+      
       const orderData = await orderResponse.json();
+      console.log('Order response data:', orderData);
 
       if (!orderResponse.ok) {
         throw new Error(orderData.error || 'Failed to create order');
+      }
+
+      if (!orderData.order || !orderData.order.id) {
+        throw new Error('Invalid order response from server');
       }
 
       const options = {
@@ -80,6 +103,7 @@ export default function PaymentPage() {
         description: `Bus Pass - ${bookingData.destination}`,
         order_id: orderData.order.id,
         handler: async (response: any) => {
+          console.log('Payment successful, verifying...', response);
           try {
             // Verify payment
             const verifyResponse = await fetch('/api/payment/verify', {
@@ -94,7 +118,10 @@ export default function PaymentPage() {
               }),
             });
 
-            if (verifyResponse.ok) {
+            const verifyData = await verifyResponse.json();
+            console.log('Verification response:', verifyData);
+
+            if (verifyResponse.ok && verifyData.success) {
               // Save booking
               await saveBooking(true);
               toast.success('Payment successful!');
@@ -104,7 +131,7 @@ export default function PaymentPage() {
             }
           } catch (error) {
             console.error('Payment verification error:', error);
-            toast.error('Payment verification failed');
+            toast.error('Payment verification failed. Please contact support.');
           }
         },
         prefill: {
@@ -120,13 +147,21 @@ export default function PaymentPage() {
             toast.info('Payment cancelled');
           },
         },
+        onError: (error: any) => {
+          console.error('Razorpay error:', error);
+          setIsLoading(false);
+          toast.error('Payment failed. Please try again.');
+        },
       };
 
+      console.log('Opening Razorpay with options:', options);
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (error) {
       console.error('Payment error:', error);
-      toast.error('Failed to initiate payment');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initiate payment';
+      setError(errorMessage);
+      toast.error(errorMessage);
       setIsLoading(false);
     }
   };
@@ -168,12 +203,15 @@ export default function PaymentPage() {
       await handleRazorpayPayment();
     } else {
       setIsLoading(true);
+      setError(null);
       try {
         await saveBooking(false);
         toast.success('Booking confirmed! Pay at college.');
         router.push('/ticket');
       } catch (error) {
-        toast.error('Booking failed. Please try again.');
+        const errorMessage = error instanceof Error ? error.message : 'Booking failed. Please try again.';
+        setError(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -204,6 +242,20 @@ export default function PaymentPage() {
             </h1>
             <p className="text-gray-600">Choose your payment option</p>
           </motion.div>
+
+          {/* Error Display */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg"
+            >
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                <span className="text-red-700 text-sm">{error}</span>
+              </div>
+            </motion.div>
+          )}
 
           <div className="space-y-6">
             {/* Booking Summary */}
@@ -266,7 +318,9 @@ export default function PaymentPage() {
                 </CardContent>
               </Card>
 
-              <Card
+              {/* Upfront Payment */}
+
+              {/* <Card
                 className={`cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:bg-gradient-to-r hover:from-orange-50 hover:to-yellow-50 ${
                   isLoading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
@@ -281,7 +335,7 @@ export default function PaymentPage() {
                     Reserve seat and pay at college
                   </p>
                 </CardContent>
-              </Card>
+              </Card>*/}
             </motion.div>
           </div>
         </div>
