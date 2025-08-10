@@ -14,20 +14,19 @@ export async function GET() {
       console.error('Error fetching admin settings:', adminError);
     }
 
-      // Get bus availability from buses
-  const { data: busData, error: busError } = await supabase
-    .from('buses')
-    .select('route_code, available_seats, is_active')
-    .eq('is_active', true);
+    // Get bus availability
+    const { data: busData, error: busError } = await supabase
+      .from('bus_availability')
+      .select('bus_route, available_seats');
 
-  if (busError) {
-    console.error('Error fetching bus availability:', busError);
-  }
+    if (busError) {
+      console.error('Error fetching bus availability:', busError);
+    }
 
-  const busAvailability: { [key: string]: number } = {};
-  busData?.forEach((bus) => {
-    busAvailability[bus.route_code] = bus.available_seats;
-  });
+    const busAvailability: { [key: string]: number } = {};
+    busData?.forEach((bus) => {
+      busAvailability[bus.bus_route] = bus.available_seats;
+    });
 
     return createApiResponse({
       bookingEnabled: adminData?.booking_enabled || false,
@@ -77,16 +76,16 @@ export async function PATCH(request: NextRequest) {
         throw adminError;
       }
 
-      // Update bus availability directly on buses
+      // Update bus availability
       if (busAvailability) {
         for (const [busRoute, seats] of Object.entries(busAvailability)) {
           const { error: busError } = await supabaseAdmin
-            .from('buses')
-            .update({
+            .from('bus_availability')
+            .upsert({
+              bus_route: busRoute,
               available_seats: seats as number,
               updated_at: new Date().toISOString(),
-            })
-            .eq('route_code', busRoute);
+            });
 
           if (busError) {
             console.error(`Failed to update ${busRoute}:`, busError);

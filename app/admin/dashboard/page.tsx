@@ -26,7 +26,6 @@ interface Bus {
   id: number;
   name: string;
   route_code: string;
-  available_seats: number;
   is_active: boolean;
 }
 
@@ -352,21 +351,6 @@ function AdminDashboard() {
                       }
                     />
                   </div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.6 }}
-                    className="text-center"
-                  >
-                    <Button
-                      onClick={handleSaveSettings}
-                      disabled={isSaving}
-                      size="lg"
-                      className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold px-8 py-3 rounded-lg transition-all duration-300 transform hover:scale-105"
-                    >
-                      {isSaving ? 'Saving...' : 'Update Dates'}
-                    </Button>
-                  </motion.div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -405,7 +389,7 @@ function AdminDashboard() {
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Available Seats:</span>
                       <span className="font-semibold">
-                        {buses.reduce((sum, b) => sum + (b.available_seats || 0), 0)}
+                        {Object.values(adminData.busAvailability).reduce((sum, seats) => sum + seats, 0)}
                       </span>
                     </div>
                   </div>
@@ -436,7 +420,7 @@ function AdminDashboard() {
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Available Seats:</span>
                           <Badge variant="outline" className="text-lg font-semibold">
-                            {bus.available_seats || 0}
+                            {adminData.busAvailability[bus.route_code] || 0}
                           </Badge>
                         </div>
                       </CardContent>
@@ -534,6 +518,23 @@ function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
+          </motion.div>
+
+          {/* Save Button */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.6 }}
+            className="mt-8 text-center"
+          >
+            <Button
+              onClick={handleSaveSettings}
+              disabled={isSaving}
+              size="lg"
+              className="bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold px-8 py-3 rounded-lg transition-all duration-300 transform hover:scale-105"
+            >
+              {isSaving ? 'Saving...' : 'Save All Settings'}
+            </Button>
           </motion.div>
         </div>
       </div>

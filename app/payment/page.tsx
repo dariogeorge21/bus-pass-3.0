@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,21 +10,137 @@ import { CreditCard, Wallet, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 export default function PaymentPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const router = useRouter();
   const { bookingData, updateBookingData } = useBooking();
 
-  const handlePaymentMethod = async (method: 'online' | 'upfront') => {
+  useEffect(() => {
+    // Check if booking data is available
+    if (!bookingData.studentName || !bookingData.admissionNumber || !bookingData.fare) {
+      router.push('/details');
+      return;
+    }
+
+    // Load Razorpay script
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => setRazorpayLoaded(true);
+    script.onerror = () => {
+      console.error('Failed to load Razorpay script');
+      toast.error('Payment gateway failed to load');
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, [bookingData, router]);
+
+  const handleRazorpayPayment = async () => {
+    if (!razorpayLoaded) {
+      toast.error('Payment gateway is loading. Please try again.');
+      return;
+    }
+
     setIsLoading(true);
 
+    try {
+      // Create order
+      const orderResponse = await fetch('/api/payment/order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: bookingData.fare * 100, // Convert to paise
+          currency: 'INR',
+          receipt: `bus_booking_${Date.now()}`,
+        }),
+      });
+
+      const orderData = await orderResponse.json();
+
+      if (!orderResponse.ok) {
+        throw new Error(orderData.error || 'Failed to create order');
+      }
+
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: 'St. Joseph\'s College Bus Pass',
+        description: `Bus Pass - ${bookingData.destination}`,
+        order_id: orderData.order.id,
+        handler: async (response: any) => {
+          try {
+            // Verify payment
+            const verifyResponse = await fetch('/api/payment/verify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            if (verifyResponse.ok) {
+              // Save booking
+              await saveBooking(true);
+              toast.success('Payment successful!');
+              router.push('/ticket');
+            } else {
+              throw new Error('Payment verification failed');
+            }
+          } catch (error) {
+            console.error('Payment verification error:', error);
+            toast.error('Payment verification failed');
+          }
+        },
+        prefill: {
+          name: bookingData.studentName,
+          email: `${bookingData.admissionNumber}@sjcet.ac.in`,
+        },
+        theme: {
+          color: '#2563eb',
+        },
+        modal: {
+          ondismiss: () => {
+            setIsLoading(false);
+            toast.info('Payment cancelled');
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error('Failed to initiate payment');
+      setIsLoading(false);
+    }
+  };
+
+  const saveBooking = async (paymentStatus: boolean) => {
     try {
       const bookingPayload = {
         studentName: bookingData.studentName,
         admissionNumber: bookingData.admissionNumber,
         busRoute: bookingData.busRoute,
+        busName: bookingData.busName,
         destination: bookingData.destination,
-        paymentStatus: method === 'online',
+        fare: bookingData.fare,
+        paymentStatus,
         timestamp: new Date().toISOString(),
       };
 
@@ -37,24 +153,30 @@ export default function PaymentPage() {
       });
 
       if (response.ok) {
-        updateBookingData({ paymentStatus: method === 'online' });
-        
-        if (method === 'online') {
-          // Redirect to Razorpay (placeholder)
-          toast.info('Redirecting to payment gateway...');
-          setTimeout(() => {
-            router.push('/ticket');
-          }, 2000);
-        } else {
-          router.push('/ticket');
-        }
+        updateBookingData({ paymentStatus });
       } else {
         throw new Error('Booking failed');
       }
     } catch (error) {
-      toast.error('Booking failed. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error('Booking error:', error);
+      throw error;
+    }
+  };
+
+  const handlePaymentMethod = async (method: 'online' | 'upfront') => {
+    if (method === 'online') {
+      await handleRazorpayPayment();
+    } else {
+      setIsLoading(true);
+      try {
+        await saveBooking(false);
+        toast.success('Booking confirmed! Pay at college.');
+        router.push('/ticket');
+      } catch (error) {
+        toast.error('Booking failed. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -121,13 +243,15 @@ export default function PaymentPage() {
               className="space-y-4"
             >
               <Card
-                className="cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-green-50"
-                onClick={() => handlePaymentMethod('online')}
+                className={`cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-green-50 ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                onClick={() => !isLoading && handlePaymentMethod('online')}
               >
                 <CardContent className="p-6 text-center">
                   <CreditCard className="w-12 h-12 text-blue-600 mx-auto mb-4" />
                   <h3 className="text-xl font-bold text-gray-800 mb-2">
-                    Online Payment
+                    {isLoading ? 'Processing...' : 'Online Payment'}
                   </h3>
                   <p className="text-gray-600 mb-4">
                     Pay securely using Razorpay
@@ -143,16 +267,18 @@ export default function PaymentPage() {
               </Card>
 
               <Card
-                className="cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:bg-gradient-to-r hover:from-orange-50 hover:to-yellow-50"
-                onClick={() => handlePaymentMethod('upfront')}
+                className={`cursor-pointer transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:bg-gradient-to-r hover:from-orange-50 hover:to-yellow-50 ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                onClick={() => !isLoading && handlePaymentMethod('upfront')}
               >
                 <CardContent className="p-6 text-center">
                   <Wallet className="w-12 h-12 text-orange-600 mx-auto mb-4" />
                   <h3 className="text-xl font-bold text-gray-800 mb-2">
-                    Upfront Payment
+                    {isLoading ? 'Processing...' : 'Pay at College'}
                   </h3>
                   <p className="text-gray-600">
-                    Pay directly at the college
+                    Reserve seat and pay at college
                   </p>
                 </CardContent>
               </Card>
